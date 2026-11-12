@@ -10,13 +10,13 @@ import pytest
 RAIZ = Path(__file__).parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from agentes import brl, calcular_score, checar_politica, proposta_por_regras  # noqa: E402
+from agentes import brl, calcular_score, checar_politica, proposta_por_regras
 
 
 @pytest.fixture(autouse=True)
 def banco_temporario(tmp_path, monkeypatch):
     monkeypatch.setenv("ERP_DB", str(tmp_path / "erp.db"))
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)  # testes sempre offline
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     yield tmp_path / "erp.db"
 
 
@@ -45,7 +45,7 @@ def _rodar(cliente, auto):
 
 
 def test_cliente_confiavel_fecha_acordo_sem_humano(banco_temporario):
-    estado = _rodar(1, auto=None)  # se pedisse humano, input() quebraria o teste
+    estado = _rodar(1, auto=None)
     assert estado["decisao"] == "automatico"
     with sqlite3.connect(banco_temporario) as c:
         assert c.execute("SELECT COUNT(*) FROM boletos").fetchone()[0] == 3

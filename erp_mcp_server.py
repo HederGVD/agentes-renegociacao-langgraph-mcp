@@ -1,8 +1,3 @@
-"""Servidor MCP que expõe o "ERP" da distribuidora (SQLite) como ferramentas.
-
-Os agentes nunca tocam no banco diretamente: tudo passa por estas ferramentas MCP,
-do mesmo jeito que passariam por um ERP/CRM real da empresa.
-"""
 import json
 import os
 import sqlite3
@@ -43,7 +38,7 @@ def _criar_e_popular(c: sqlite3.Connection) -> None:
         """
     )
     hoje = date.today()
-    d = lambda dias: (hoje - timedelta(days=dias)).isoformat()  # noqa: E731
+    d = lambda dias: (hoje - timedelta(days=dias)).isoformat()
     c.executemany(
         "INSERT INTO clientes VALUES (?,?,?,?,?,?)",
         [
@@ -55,13 +50,13 @@ def _criar_e_popular(c: sqlite3.Connection) -> None:
     c.executemany(
         "INSERT INTO titulos (cliente_id, valor, vencimento, pago_em) VALUES (?,?,?,?)",
         [
-            # cliente 1: bom pagador antigo, atrasou pouco
+
             (1, 3200.0, d(400), d(398)), (1, 2900.0, d(300), d(300)), (1, 4100.0, d(200), d(195)),
             (1, 3800.0, d(40), None), (1, 2500.0, d(10), None),
-            # cliente 2: novo, histórico ruim, dívida alta
+
             (2, 1500.0, d(250), d(210)), (2, 1800.0, d(180), d(120)),
             (2, 6200.0, d(150), None), (2, 7400.0, d(95), None), (2, 5900.0, d(60), None),
-            # cliente 3: médio
+
             (3, 2200.0, d(300), d(290)), (3, 2600.0, d(200), d(170)),
             (3, 4800.0, d(75), None), (3, 3900.0, d(45), None),
         ],
@@ -75,7 +70,6 @@ def _hoje() -> str:
 
 @mcp.tool()
 def buscar_cliente(cliente_id: int) -> str:
-    """Dados cadastrais de um cliente."""
     with _conn() as c:
         row = c.execute("SELECT * FROM clientes WHERE id=?", (cliente_id,)).fetchone()
     return json.dumps(dict(row) if row else {"erro": "cliente não encontrado"}, ensure_ascii=False)
@@ -83,7 +77,6 @@ def buscar_cliente(cliente_id: int) -> str:
 
 @mcp.tool()
 def titulos_em_aberto(cliente_id: int) -> str:
-    """Títulos vencidos e não pagos, com dias de atraso."""
     with _conn() as c:
         rows = c.execute(
             "SELECT id, valor, vencimento FROM titulos WHERE cliente_id=? AND pago_em IS NULL",
@@ -97,7 +90,6 @@ def titulos_em_aberto(cliente_id: int) -> str:
 
 @mcp.tool()
 def historico_pagamentos(cliente_id: int) -> str:
-    """Títulos já pagos, com quantos dias de atraso cada um foi pago."""
     with _conn() as c:
         rows = c.execute(
             "SELECT valor, vencimento, pago_em FROM titulos WHERE cliente_id=? AND pago_em IS NOT NULL",
@@ -117,7 +109,6 @@ def historico_pagamentos(cliente_id: int) -> str:
 @mcp.tool()
 def registrar_acordo(cliente_id: int, valor_original: float, desconto_pct: float,
                      parcelas: int, aprovado_por: str) -> str:
-    """Grava o acordo de renegociação, gera os boletos mensais e baixa os títulos renegociados."""
     valor_final = round(valor_original * (1 - desconto_pct / 100), 2)
     parcela = round(valor_final / parcelas, 2)
     hoje = date.today()
@@ -141,7 +132,6 @@ def registrar_acordo(cliente_id: int, valor_original: float, desconto_pct: float
 
 @mcp.tool()
 def enviar_mensagem(cliente_id: int, canal: str, texto: str) -> str:
-    """Envia uma mensagem ao cliente (aqui: grava na caixa de saída do ERP)."""
     with _conn() as c:
         cur = c.execute("INSERT INTO mensagens (cliente_id, canal, texto, enviada_em) VALUES (?,?,?,?)",
                         (cliente_id, canal, texto, _hoje()))
@@ -149,4 +139,4 @@ def enviar_mensagem(cliente_id: int, canal: str, texto: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()  # stdio
+    mcp.run()

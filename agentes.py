@@ -1,16 +1,3 @@
-"""Time de agentes (LangGraph) que renegocia dívidas de clientes B2B.
-
-Fluxo:
-  analista_credito -> negociador -> guardiao_politica -+-> executor -> comunicador
-                                                       |
-                                                       +-> supervisor_humano (interrupt)
-                                                             |-> aprovar / contraproposta -> executor
-                                                             +-> rejeitar -> comunicador
-
-Cada agente usa ferramentas do servidor MCP do ERP. O negociador e o comunicador usam
-Claude quando há ANTHROPIC_API_KEY; sem chave, caem em regras determinísticas
-(o projeto roda e é testável offline).
-"""
 from __future__ import annotations
 
 import json
@@ -21,10 +8,10 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
-# ---------------------------------------------------------------- política da empresa
-DESCONTO_MAX_AUTONOMO = 10.0   # % que o agente pode conceder sozinho
+
+DESCONTO_MAX_AUTONOMO = 10.0
 PARCELAS_MAX_AUTONOMO = 6
-DESCONTO_MAX_ABSOLUTO = 30.0   # nem o humano passa disso
+DESCONTO_MAX_ABSOLUTO = 30.0
 PARCELAS_MAX_ABSOLUTO = 12
 MODELO = os.environ.get("MODELO_LLM", "claude-sonnet-5-5")
 
@@ -51,15 +38,13 @@ class Estado(TypedDict, total=False):
     log: list[str]
 
 
-# ---------------------------------------------------------------- utilidades
 def brl(v: float) -> str:
     return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 async def chamar(tools: dict, nome: str, **args):
-    """Chama uma ferramenta MCP e devolve o JSON já decodificado."""
     res = await tools[nome].ainvoke(args)
-    if isinstance(res, list):  # blocos de conteúdo MCP
+    if isinstance(res, list):
         res = "".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
     return json.loads(res)
 
@@ -72,7 +57,6 @@ def _llm():
 
 
 def calcular_score(historico: list[dict], abertos: list[dict], anos_cliente: float) -> int:
-    """Score 0-100: quanto maior, mais confiável o cliente."""
     score = 60
     if historico:
         atraso_medio = sum(h["atraso_dias"] for h in historico) / len(historico)
@@ -102,7 +86,6 @@ def checar_politica(p: dict) -> list[str]:
     return motivos
 
 
-# ---------------------------------------------------------------- grafo
 def montar_grafo(tools: dict, checkpointer):
     async def analista_credito(s: Estado) -> Estado:
         cid = s["cliente_id"]
@@ -146,7 +129,6 @@ def montar_grafo(tools: dict, checkpointer):
                 "log": s["log"] + [f"[guardiao_politica] {msg}"]}
 
     def supervisor_humano(s: Estado) -> Estado:
-        # Pausa o grafo e espera a decisão de uma pessoa (human-in-the-loop).
         resposta = interrupt({
             "analise": s["analise"],
             "proposta": s["proposta"],
@@ -162,7 +144,7 @@ def montar_grafo(tools: dict, checkpointer):
             prop = {**s["proposta"], "desconto_pct": float(resposta["desconto_pct"]),
                     "parcelas": int(resposta["parcelas"]),
                     "justificativa": f"Contraproposta de {quem}"}
-            Proposta(**prop)  # valida contra o teto absoluto
+            Proposta(**prop)
             return {"proposta": prop, "aprovado_por": quem, "decisao": "aprovado",
                     "log": s["log"] + [f"[supervisor_humano] {quem} contrapropôs {prop['desconto_pct']}% em {prop['parcelas']}x"]}
         return {"decisao": "rejeitado", "aprovado_por": quem,

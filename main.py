@@ -1,8 +1,3 @@
-"""Roda o time de agentes para um cliente.
-
-    python main.py --cliente 2                 # pergunta ao supervisor no terminal
-    python main.py --cliente 2 --auto aprovar  # decisão humana simulada (demo/CI)
-"""
 import argparse
 import asyncio
 import json
@@ -34,7 +29,6 @@ def perguntar_supervisor(pedido: dict) -> dict:
 
 
 async def executar(cliente_id: int, auto: str | None = None) -> dict:
-    # env repassado para o servidor MCP herdar ERP_DB / configurações
     servidor = StdioServerParameters(command=sys.executable, args=[SCRIPT_SERVIDOR], env=dict(os.environ))
     async with stdio_client(servidor) as (r, w), ClientSession(r, w) as sessao:
         await sessao.initialize()
